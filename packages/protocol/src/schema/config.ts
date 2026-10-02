@@ -56,4 +56,6 @@ export const RecordingConfigSchema = z.object({
   compiler: CompilerConfigSchema.optional(),
 });
 
-export type RecordingConfig = z.infer<typeof RecordingConfigSchema>;
+export type RecordingConfig = z.output<typeof RecordingConfigSchema>;
+export type RecordingConfigInput = z.input<typeof RecordingConfigSchema>;
+

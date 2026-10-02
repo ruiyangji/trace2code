@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@trace2code/distiller": "workspace:*",
     "@trace2code/protocol": "workspace:*",
     "@trace2code/recorder-core": "workspace:*",
     "playwright": "^1.49.0"

@@ -21,6 +21,7 @@
   "devDependencies": {
     "@trace2code/test-fixtures": "workspace:*",
     "@types/node": "^20.17.0",
+    "playwright": "^1.49.0",
     "typescript": "^5.7.2"
   }
 }
