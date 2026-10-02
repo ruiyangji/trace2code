@@ -1,0 +1,27 @@
+{
+  "name": "@trace2code/trace-store",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@trace2code/protocol": "workspace:*",
+    "sql.js": "^1.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/sql.js": "^1.4.11",
+    "typescript": "^5.7.2"
+  }
+}
