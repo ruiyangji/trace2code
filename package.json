@@ -1,0 +1,31 @@
+{
+  "name": "trace2code-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter \"./packages/*\" --filter \"./apps/*\" --filter \"./services/*\" run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "trace": "tsx apps/cli/src/index.ts",
+    "trace2code": "tsx apps/cli/src/index.ts",
+    "demo:e2e": "tsx scripts/e2e-live-demo.ts",
+    "typecheck": "tsc --build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^20.17.0",
+    "commander": "^12.1.0",
+    "playwright": "^1.49.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "zod": "^3.23.8"
+  },
+  "packageManager": "pnpm@12.8.1",
+  "dependencies": {
+    "@types/sql.js": "^1.4.11",
+    "sql.js": "^1.14.2"
+  }
+}

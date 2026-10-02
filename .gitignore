@@ -1,0 +1,8 @@
+node_modules
+dist
+.trace2code
+*.log
+.DS_Store
+coverage
+.turbo
+*.tsbuildinfo
