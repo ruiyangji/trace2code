@@ -72,12 +72,23 @@ export const WorkflowPostconditionSchema = z.object({
 
 export type WorkflowPostcondition = z.infer<typeof WorkflowPostconditionSchema>;
 
+export const WorkflowConditionSchema = z.object({
+  input: z.string().optional(),
+  equals: z.unknown().optional(),
+  notEquals: z.unknown().optional(),
+  elementVisible: WorkflowTargetSchema.optional(),
+});
+
+export type WorkflowCondition = z.infer<typeof WorkflowConditionSchema>;
+
 export const WorkflowStepSchema = z.object({
   id: z.string(),
   intent: z.string(),
   action: WorkflowActionSchema,
   postcondition: WorkflowPostconditionSchema.optional(),
   confidence: z.enum(['high', 'medium', 'low']).optional().default('high'),
+  optional: z.boolean().optional(),
+  condition: WorkflowConditionSchema.optional(),
 });
 
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
@@ -113,6 +124,12 @@ export function validateWorkflowIR(data: unknown): { valid: boolean; data?: Work
         const inputKey = step.action.value.input;
         if (!declaredInputs.includes(inputKey)) {
           errors.push(`Step '${step.id}' references undeclared input '${inputKey}'`);
+        }
+      }
+      if (step.condition?.input) {
+        const condInputKey = step.condition.input;
+        if (!declaredInputs.includes(condInputKey)) {
+          errors.push(`Step '${step.id}' condition references undeclared input '${condInputKey}'`);
         }
       }
     }

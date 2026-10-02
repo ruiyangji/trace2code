@@ -337,6 +337,96 @@ program
     }
   });
 
+// trace2code generalize <runIds...>
+program
+  .command('generalize <runIds...>')
+  .description('Synthesize a generalized workflow from multiple demonstration traces')
+  .option('-t, --target <format>', 'Target output format (playwright-ts | ir)', 'playwright-ts')
+  .option('--ir', 'Shortcut to output Workflow IR JSON')
+  .option('-n, --name <name>', 'Synthesized workflow name', 'generalized-workflow')
+  .option('-o, --output <path>', 'Output destination (file for IR, directory for playwright-ts)')
+  .action(async (runIds: string[], options: { target: string; ir?: boolean; name: string; output?: string }) => {
+    const { TraceStore } = await import('@trace2code/trace-store');
+    const { distillRawTrace } = await import('@trace2code/distiller');
+    const {
+      MultiTraceGeneralizer,
+      compileWorkflowToPlaywright,
+    } = await import('@trace2code/compiler');
+
+    const dbPath = path.resolve(process.cwd(), '.trace2code', 'store.db');
+    const store = new TraceStore(dbPath);
+    await store.init();
+
+    const allTraces: any[][] = [];
+
+    for (const runId of runIds) {
+      let run = store.getRun(runId);
+      let events = store.getEvents(runId);
+
+      if (!run && fs.existsSync(path.resolve(process.cwd(), runId))) {
+        const imported = store.importJsonl(path.resolve(process.cwd(), runId));
+        run = imported;
+        events = store.getEvents(run.id);
+      }
+
+      if (!run || events.length === 0) {
+        console.error(`Error: Demonstration trace '${runId}' not found or empty.`);
+        store.close();
+        process.exit(1);
+      }
+
+      const steps = distillRawTrace(events);
+      allTraces.push(steps);
+    }
+
+    store.close();
+
+    console.log(`Synthesizing generalized workflow across ${allTraces.length} demonstrations...`);
+    const generalizer = new MultiTraceGeneralizer();
+    const result = generalizer.generalize({
+      workflowName: options.name,
+      traces: allTraces,
+    });
+
+    console.log(`\nSynthesis Complete:`);
+    console.log(`  - Aligned Columns: ${result.alignment.columns.length}`);
+    console.log(`  - Parameterized Inputs (${result.parameterizedInputs.length}): ${result.parameterizedInputs.join(', ') || 'none'}`);
+    console.log(`  - Constant Invariants: ${result.constantInvariants.length}`);
+    console.log(`  - Branch / Optional Steps (${result.branchSteps.length}): ${result.branchSteps.join(', ') || 'none'}`);
+    console.log(`  - Detected Loops: ${result.detectedLoops.length}`);
+
+    const targetFormat = options.ir ? 'ir' : options.target;
+
+    if (targetFormat === 'ir') {
+      const formattedJson = JSON.stringify(result.ir, null, 2);
+      if (options.output) {
+        const outPath = path.resolve(process.cwd(), options.output);
+        const outDir = path.dirname(outPath);
+        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(outPath, formattedJson, 'utf-8');
+        console.log(`  - Generalized Workflow IR saved to ${outPath}`);
+      } else {
+        console.log('\n--- Generalized Workflow IR ---');
+        console.log(formattedJson);
+      }
+    } else {
+      const project = compileWorkflowToPlaywright(result.ir);
+      const outputDir = path.resolve(
+        process.cwd(),
+        options.output || path.join('.trace2code', 'compiled', result.ir.name)
+      );
+      project.writeToDisk(outputDir);
+
+      console.log(`\nStandalone Playwright TypeScript Project Generated:`);
+      console.log(`  - Destination Directory: ${outputDir}`);
+      console.log(`  - Files:`);
+      Object.keys(project.files).forEach((f) => console.log(`      • ${f}`));
+      console.log(`\nTo execute independently without LLM:`);
+      console.log(`  cd ${outputDir} && npm install && npx playwright test`);
+    }
+  });
+
 program.parse(process.argv);
+
 
 

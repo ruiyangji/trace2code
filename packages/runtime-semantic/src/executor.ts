@@ -31,6 +31,23 @@ export class RecoverableWorkflowExecutor {
     let recoveredSteps = 0;
 
     for (const step of ir.steps) {
+      if (step.condition) {
+        if (step.condition.input) {
+          const inputVal = inputs[step.condition.input];
+          if (step.condition.equals !== undefined) {
+            if (inputVal !== step.condition.equals) continue;
+          } else if (step.condition.notEquals !== undefined) {
+            if (inputVal === step.condition.notEquals) continue;
+          } else if (!inputVal) {
+            continue;
+          }
+        }
+      } else if (step.optional) {
+        if ('value' in step.action && step.action.value && 'input' in step.action.value) {
+          if (!inputs[step.action.value.input]) continue;
+        }
+      }
+
       try {
         await this.executeStepDeterministically(page, step, inputs);
         stepsExecuted++;
@@ -138,8 +155,9 @@ export class RecoverableWorkflowExecutor {
         const locator = page.locator(selector);
         await locator.waitFor({ state: 'visible', timeout });
         let val = 'ca';
-        if ('value' in step.action && step.action.value && 'constant' in step.action.value) {
-          val = step.action.value.constant;
+        if ('value' in step.action && step.action.value) {
+          if ('input' in step.action.value) val = inputs[step.action.value.input] ?? '';
+          else if ('constant' in step.action.value) val = step.action.value.constant;
         }
         await (locator as any).selectOption(val, { timeout });
         break;
