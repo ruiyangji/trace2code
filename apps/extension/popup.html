@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Trace2Code Recorder</title>
+  <style>
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+    h2 { margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+    .badge-idle { background: #e2e8f0; color: #475569; }
+    .badge-recording { background: #fee2e2; color: #dc2626; animation: pulse 1.5s infinite; }
+    .badge-paused { background: #fef3c7; color: #d97706; }
+    .badge-stopped { background: #dcfce7; color: #16a34a; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #334155;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-warning:hover { background: #b45309; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .annotation-bar {
+      margin-top: 14px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+      display: flex;
+      gap: 6px;
+    }
+    .annotation-bar button {
+      flex: 1;
+      font-size: 11px;
+      padding: 6px 4px;
+    }
+    #status-msg {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 8px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Trace2Code</h2>
+    <span id="status-badge" class="badge badge-idle">IDLE</span>
+  </header>
+
+  <div class="form-group">
+    <label for="run-name">Run Name</label>
+    <input type="text" id="run-name" value="expense-report-demo">
+  </div>
+
+  <div class="form-group">
+    <label for="capture-mode">Capture Mode</label>
+    <select id="capture-mode">
+      <option value="full">FULL (Debug & Reproducibility)</option>
+      <option value="distilled">DISTILLED (Efficient Production)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="daemon-url">Local Daemon URL</label>
+    <input type="text" id="daemon-url" value="http://127.0.0.1:4200">
+  </div>
+
+  <div class="btn-group">
+    <button id="btn-start" class="btn-primary">Start Recording</button>
+    <button id="btn-stop" class="btn-danger" disabled>Stop Recording</button>
+  </div>
+
+  <div class="btn-group">
+    <button id="btn-pause" class="btn-warning" disabled>Pause</button>
+    <button id="btn-resume" class="btn-secondary" disabled>Resume</button>
+  </div>
+
+  <div class="annotation-bar">
+    <button id="btn-mark-step" class="btn-secondary" disabled>+ Mark Step</button>
+    <button id="btn-mark-param" class="btn-secondary" disabled>+ Parameter</button>
+    <button id="btn-mark-secret" class="btn-secondary" disabled>+ Secret</button>
+  </div>
+
+  <div id="status-msg">Ready to record demonstration</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
