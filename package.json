@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit",
     "trace": "tsx apps/cli/src/index.ts",
     "trace2code": "tsx apps/cli/src/index.ts",
+    "demo:e2e": "tsx scripts/e2e-live-demo.ts",
     "typecheck": "tsc --build"
   },
   "devDependencies": {
