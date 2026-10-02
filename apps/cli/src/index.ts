@@ -225,6 +225,97 @@ program
     console.log(`Successfully imported run "${run.name}" (ID: ${run.id}) into SQLite store.`);
   });
 
+// trace2code compile <run-id>
+program
+  .command('compile <runId>')
+  .description('Compile a recorded demonstration into Workflow IR or target source code')
+  .option('--ir', 'Output canonical Workflow IR JSON', true)
+  .option('-o, --output <file>', 'Output file destination')
+  .option('-p, --provider <name>', 'Inference provider (deterministic-rules | gemini)', 'deterministic-rules')
+  .action(async (runId: string, options: { ir?: boolean; output?: string; provider?: string }) => {
+    const { TraceStore } = await import('@trace2code/trace-store');
+    const { distillRawTrace } = await import('@trace2code/distiller');
+    const {
+      SemanticCompiler,
+      DeterministicRuleCompilerProvider,
+      GeminiCompilerProvider,
+    } = await import('@trace2code/compiler');
+
+    const dbPath = path.resolve(process.cwd(), '.trace2code', 'store.db');
+    const store = new TraceStore(dbPath);
+    await store.init();
+
+    let run = store.getRun(runId);
+    let events = store.getEvents(runId);
+
+    // If not found in store, check if runId is a path to a jsonl file
+    if (!run && fs.existsSync(path.resolve(process.cwd(), runId))) {
+      const imported = store.importJsonl(path.resolve(process.cwd(), runId));
+      run = imported;
+      events = store.getEvents(run.id);
+    }
+
+    if (!run || events.length === 0) {
+      console.error(`Error: Run '${runId}' not found in store or empty trace.`);
+      store.close();
+      process.exit(1);
+    }
+
+    store.close();
+
+    console.log(`Compiling demonstration run "${run.name}" (${events.length} raw events)...`);
+    const semanticSteps = distillRawTrace(events);
+
+    // Extract user marks
+    const userMarks = events
+      .filter((e) => e.type === 'mark')
+      .map((e) => {
+        const payload = e.payload as any;
+        return {
+          kind: (payload?.kind || 'note') as any,
+          label: payload?.label || '',
+          details: payload?.details,
+          targetSeq: e.seq,
+          timestampMs: e.timestampMs,
+        };
+      });
+
+    const providerInstance =
+      options.provider === 'gemini'
+        ? new GeminiCompilerProvider()
+        : new DeterministicRuleCompilerProvider();
+
+    const compiler = new SemanticCompiler(providerInstance);
+    const result = await compiler.compile({
+      workflowName: run.name,
+      steps: semanticSteps,
+      userMarks,
+    });
+
+    if (!result.valid || !result.ir) {
+      console.error(`Compilation failed with ${result.errors.length} errors:`);
+      result.errors.forEach((err) => console.error(`  - ${err}`));
+      process.exit(1);
+    }
+
+    console.log(`Workflow compiled successfully!`);
+    console.log(`  - Provider: ${result.stats.provider}`);
+    console.log(`  - Steps: ${result.stats.stepCount}`);
+    console.log(`  - Declared Inputs: ${result.stats.inputCount}`);
+
+    const formattedJson = JSON.stringify(result.ir, null, 2);
+    if (options.output) {
+      const outPath = path.resolve(process.cwd(), options.output);
+      const outDir = path.dirname(outPath);
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(outPath, formattedJson, 'utf-8');
+      console.log(`  - Workflow IR saved to ${outPath}`);
+    } else {
+      console.log('\n--- Workflow IR ---');
+      console.log(formattedJson);
+    }
+  });
+
 program.parse(process.argv);
 
 
