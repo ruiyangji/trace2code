@@ -228,17 +228,19 @@ program
 // trace2code compile <run-id>
 program
   .command('compile <runId>')
-  .description('Compile a recorded demonstration into Workflow IR or target source code')
-  .option('--ir', 'Output canonical Workflow IR JSON', true)
-  .option('-o, --output <file>', 'Output file destination')
+  .description('Compile a recorded demonstration into Workflow IR or Playwright TypeScript source code')
+  .option('-t, --target <format>', 'Target output format (playwright-ts | ir)', 'playwright-ts')
+  .option('--ir', 'Shortcut to output Workflow IR JSON')
+  .option('-o, --output <path>', 'Output destination (file for IR, directory for playwright-ts)')
   .option('-p, --provider <name>', 'Inference provider (deterministic-rules | gemini)', 'deterministic-rules')
-  .action(async (runId: string, options: { ir?: boolean; output?: string; provider?: string }) => {
+  .action(async (runId: string, options: { target: string; ir?: boolean; output?: string; provider?: string }) => {
     const { TraceStore } = await import('@trace2code/trace-store');
     const { distillRawTrace } = await import('@trace2code/distiller');
     const {
       SemanticCompiler,
       DeterministicRuleCompilerProvider,
       GeminiCompilerProvider,
+      compileWorkflowToPlaywright,
     } = await import('@trace2code/compiler');
 
     const dbPath = path.resolve(process.cwd(), '.trace2code', 'store.db');
@@ -303,16 +305,35 @@ program
     console.log(`  - Steps: ${result.stats.stepCount}`);
     console.log(`  - Declared Inputs: ${result.stats.inputCount}`);
 
-    const formattedJson = JSON.stringify(result.ir, null, 2);
-    if (options.output) {
-      const outPath = path.resolve(process.cwd(), options.output);
-      const outDir = path.dirname(outPath);
-      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-      fs.writeFileSync(outPath, formattedJson, 'utf-8');
-      console.log(`  - Workflow IR saved to ${outPath}`);
+    const targetFormat = options.ir ? 'ir' : options.target;
+
+    if (targetFormat === 'ir') {
+      const formattedJson = JSON.stringify(result.ir, null, 2);
+      if (options.output) {
+        const outPath = path.resolve(process.cwd(), options.output);
+        const outDir = path.dirname(outPath);
+        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(outPath, formattedJson, 'utf-8');
+        console.log(`  - Workflow IR saved to ${outPath}`);
+      } else {
+        console.log('\n--- Workflow IR ---');
+        console.log(formattedJson);
+      }
     } else {
-      console.log('\n--- Workflow IR ---');
-      console.log(formattedJson);
+      // Playwright TypeScript project bundle
+      const project = compileWorkflowToPlaywright(result.ir);
+      const outputDir = path.resolve(
+        process.cwd(),
+        options.output || path.join('.trace2code', 'compiled', result.ir.name)
+      );
+      project.writeToDisk(outputDir);
+
+      console.log(`\nStandalone Playwright TypeScript Project Generated:`);
+      console.log(`  - Destination Directory: ${outputDir}`);
+      console.log(`  - Files:`);
+      Object.keys(project.files).forEach((f) => console.log(`      • ${f}`));
+      console.log(`\nTo execute independently without LLM:`);
+      console.log(`  cd ${outputDir} && npm install && npx playwright test`);
     }
   });
 
