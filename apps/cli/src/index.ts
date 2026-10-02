@@ -164,6 +164,51 @@ program
     console.log(`Run ${runId} successfully exported to ${outPath}`);
   });
 
+// trace2code distill <run-id>
+program
+  .command('distill <runId>')
+  .description('Perform offline semantic distillation and locator ranking on a recorded trace')
+  .option('-o, --output <file>', 'Output JSON file path')
+  .action(async (runId: string, options?: { output?: string }) => {
+    const { TraceStore } = await import('@trace2code/trace-store');
+    const { distillRawTrace, LocatorScoringSystem } = await import('@trace2code/distiller');
+    const dbPath = path.resolve(process.cwd(), '.trace2code', 'store.db');
+    const store = new TraceStore(dbPath);
+    await store.init();
+
+    const run = store.getRun(runId);
+    if (!run) {
+      console.error(`Error: Run ${runId} not found in store.`);
+      store.close();
+      process.exit(1);
+    }
+
+    const events = store.getEvents(runId);
+    store.close();
+
+    console.log(`Distilling trace for run "${run.name}" (${events.length} raw events)...`);
+    const steps = distillRawTrace(events);
+    const scoring = new LocatorScoringSystem();
+
+    const outputSteps = steps.map((s) => ({
+      ...s,
+      rankedLocators: scoring.rankCandidates(s.target),
+    }));
+
+    console.log(`Semantic Distillation Complete: ${outputSteps.length} semantic steps generated.`);
+    outputSteps.forEach((s) => {
+      const targetStr = s.target?.accessibleName ? `"${s.target.accessibleName}"` : s.target?.id ? `#${s.target.id}` : '';
+      const topLocator = s.rankedLocators[0]?.playwrightCode || 'n/a';
+      console.log(`  Step ${s.seq + 1}: ${s.action} ${targetStr} -> ${topLocator}`);
+    });
+
+    const outPath = options?.output || path.resolve(process.cwd(), '.trace2code', 'runs', runId, 'distilled.json');
+    const outDir = path.dirname(outPath);
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(outputSteps, null, 2), 'utf-8');
+    console.log(`Saved distilled steps to ${outPath}`);
+  });
+
 // trace2code import <file>
 program
   .command('import <file>')
