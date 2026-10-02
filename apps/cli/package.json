@@ -10,9 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@trace2code/inspector": "workspace:*",
     "@trace2code/protocol": "workspace:*",
     "@trace2code/recorder-playwright": "workspace:*",
     "@trace2code/test-fixtures": "workspace:*",
+    "@trace2code/trace-store": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {
