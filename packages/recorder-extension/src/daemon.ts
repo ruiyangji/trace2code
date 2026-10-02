@@ -10,6 +10,7 @@ import {
   serializeTraceEvent,
 } from '@trace2code/protocol';
 import { EventSequenceBuffer, RedactionEngine } from '@trace2code/recorder-core';
+import { OnlineDistiller } from '@trace2code/distiller';
 import { RecordingStateMachine } from './state-machine.js';
 
 export interface ExtensionDaemonOptions {
@@ -24,6 +25,7 @@ export class ExtensionDaemon {
   private stateMachine = new RecordingStateMachine();
   private currentRun: RecordingRun | null = null;
   private buffer: EventSequenceBuffer | null = null;
+  private distiller: OnlineDistiller | null = null;
   private traceStream: fs.WriteStream | null = null;
   private redactionEngine = new RedactionEngine();
   private activeRunDir = '';
@@ -64,6 +66,12 @@ export class ExtensionDaemon {
             this.traceStream.write(serializeRunHeader(run) + '\n');
 
             this.buffer = new EventSequenceBuffer(run.id);
+            if (run.captureMode === 'distilled') {
+              this.distiller = new OnlineDistiller();
+            } else {
+              this.distiller = null;
+            }
+
             this.buffer.subscribe((evt) => {
               if (this.traceStream && !this.traceStream.destroyed) {
                 this.traceStream.write(serializeTraceEvent(evt) + '\n');
@@ -104,8 +112,24 @@ export class ExtensionDaemon {
                 evt.target.value = this.redactionEngine.redactElementValue(evt.target.value);
               }
 
-              this.buffer?.enqueue(evt);
-              acceptedCount++;
+              if (this.distiller) {
+                const distilled = this.distiller.process({
+                  ...evt,
+                  id: evt.id || `evt_${Date.now()}`,
+                  runId,
+                  seq: 0,
+                  timestampMs: evt.timestampMs || Date.now(),
+                  tabId: evt.tabId || 'tab-main',
+                  frameId: evt.frameId || 'main',
+                });
+                for (const d of distilled) {
+                  this.buffer?.enqueue(d);
+                  acceptedCount++;
+                }
+              } else {
+                this.buffer?.enqueue(evt);
+                acceptedCount++;
+              }
             }
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -135,6 +159,13 @@ export class ExtensionDaemon {
           const stopMatch = url.match(/^\/api\/runs\/([^/]+)\/stop$/);
           if (req.method === 'POST' && stopMatch) {
             this.stateMachine.stop();
+            if (this.distiller) {
+              const remaining = this.distiller.flush();
+              for (const r of remaining) {
+                this.buffer?.enqueue(r);
+              }
+            }
+
             if (this.currentRun) {
               this.currentRun.endedAt = new Date().toISOString();
             }

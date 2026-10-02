@@ -15,6 +15,7 @@ import {
   RedactionEngine,
   buildInPageInstrumentationScript,
 } from '@trace2code/recorder-core';
+import { OnlineDistiller } from '@trace2code/distiller';
 
 export interface RecorderOptions {
   runId?: string;
@@ -36,6 +37,7 @@ export class PlaywrightRecorder {
   private context: BrowserContext | null = null;
   private buffer: EventSequenceBuffer;
   private redactionEngine: RedactionEngine;
+  private distiller: OnlineDistiller | null = null;
   private runMetadata: RecordingRun | null = null;
 
   private pageToTabId = new Map<Page, string>();
@@ -55,6 +57,9 @@ export class PlaywrightRecorder {
 
     this.buffer = new EventSequenceBuffer(this.runId);
     this.redactionEngine = new RedactionEngine(this.config.privacy);
+    if (this.config.captureMode === 'distilled') {
+      this.distiller = new OnlineDistiller();
+    }
   }
 
   async start(initialUrl?: string): Promise<{ run: RecordingRun; page: Page }> {
@@ -112,15 +117,26 @@ export class PlaywrightRecorder {
           }
         }
 
-        this.buffer.enqueue({
+        const candidateEvent: RawTraceEvent = {
           id: parsed.id,
+          runId: this.runId,
+          seq: 0,
           timestampMs: parsed.timestampMs || Date.now(),
           tabId,
           frameId,
           type: parsed.type,
           payload: parsed.payload,
           target: parsed.target,
-        });
+        };
+
+        if (this.distiller) {
+          const distilled = this.distiller.process(candidateEvent);
+          for (const evt of distilled) {
+            this.buffer.enqueue(evt);
+          }
+        } else {
+          this.buffer.enqueue(candidateEvent);
+        }
 
         // Screenshot capture strategy
         if (this.config.screenshots.enabled && this.config.screenshots.strategy === 'all-actions') {
@@ -265,6 +281,13 @@ export class PlaywrightRecorder {
   }
 
   async stop(): Promise<{ run: RecordingRun; tracePath: string; eventCount: number }> {
+    if (this.distiller) {
+      const remaining = this.distiller.flush();
+      for (const evt of remaining) {
+        this.buffer.enqueue(evt);
+      }
+    }
+
     if (this.runMetadata) {
       this.runMetadata.endedAt = new Date().toISOString();
     }
