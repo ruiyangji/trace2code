@@ -113,55 +113,57 @@ export function generateWorkflowSource(ir: WorkflowIR): string {
   for (const step of ir.steps) {
     stepLines.push(`  // ${step.id}: ${step.intent || step.action.type}`);
 
+    const actionLines: string[] = [];
+
     switch (step.action.type) {
       case 'navigate': {
-        stepLines.push(`  await page.goto(${JSON.stringify(step.action.url)});`);
+        actionLines.push(`await page.goto(${JSON.stringify(step.action.url)});`);
         break;
       }
 
       case 'click': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
-        stepLines.push(`  await ${locatorCode}.click();`);
+        actionLines.push(`await ${locatorCode}.click();`);
         break;
       }
 
       case 'fill': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
         const valExpr = formatValueExpression(step.action.value);
-        stepLines.push(`  await ${locatorCode}.fill(${valExpr});`);
+        actionLines.push(`await ${locatorCode}.fill(${valExpr});`);
         break;
       }
 
       case 'check': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
-        stepLines.push(`  await ${locatorCode}.check();`);
+        actionLines.push(`await ${locatorCode}.check();`);
         break;
       }
 
       case 'uncheck': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
-        stepLines.push(`  await ${locatorCode}.uncheck();`);
+        actionLines.push(`await ${locatorCode}.uncheck();`);
         break;
       }
 
       case 'selectOption': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
         const valExpr = formatValueExpression(step.action.value);
-        stepLines.push(`  await ${locatorCode}.selectOption(${valExpr});`);
+        actionLines.push(`await ${locatorCode}.selectOption(${valExpr});`);
         break;
       }
 
       case 'uploadFile': {
         const locatorCode = formatPlaywrightLocator(step.action.target);
         const valExpr = formatValueExpression(step.action.value);
-        stepLines.push(`  await ${locatorCode}.setInputFiles(${valExpr});`);
+        actionLines.push(`await ${locatorCode}.setInputFiles(${valExpr});`);
         break;
       }
 
       case 'drag': {
         const sourceCode = formatPlaywrightLocator(step.action.source);
         const destCode = formatPlaywrightLocator(step.action.destination);
-        stepLines.push(`  await ${sourceCode}.dragTo(${destCode});`);
+        actionLines.push(`await ${sourceCode}.dragTo(${destCode});`);
         break;
       }
     }
@@ -169,18 +171,63 @@ export function generateWorkflowSource(ir: WorkflowIR): string {
     // Postconditions
     if (step.postcondition) {
       if (step.postcondition.urlMatches) {
-        stepLines.push(
-          `  await expect(page).toHaveURL(new RegExp(${JSON.stringify(step.postcondition.urlMatches)}));`
+        actionLines.push(
+          `await expect(page).toHaveURL(new RegExp(${JSON.stringify(step.postcondition.urlMatches)}));`
         );
       }
       if (step.postcondition.elementVisible) {
         const targetLocator = formatPlaywrightLocator(step.postcondition.elementVisible);
-        stepLines.push(`  await expect(${targetLocator}).toBeVisible();`);
+        actionLines.push(`await expect(${targetLocator}).toBeVisible();`);
       }
       if (step.postcondition.textMatches) {
-        stepLines.push(
-          `  await expect(page.getByText(${JSON.stringify(step.postcondition.textMatches)})).toBeVisible();`
+        actionLines.push(
+          `await expect(page.getByText(${JSON.stringify(step.postcondition.textMatches)})).toBeVisible();`
         );
+      }
+    }
+
+    // Handle condition / branching
+    if (step.condition) {
+      let condExpr = '';
+      if (step.condition.input) {
+        if (step.condition.equals !== undefined) {
+          condExpr = `inputs?.${step.condition.input} === ${JSON.stringify(step.condition.equals)}`;
+        } else if (step.condition.notEquals !== undefined) {
+          condExpr = `inputs?.${step.condition.input} !== ${JSON.stringify(step.condition.notEquals)}`;
+        } else {
+          condExpr = `Boolean(inputs?.${step.condition.input})`;
+        }
+      } else if (step.condition.elementVisible) {
+        const targetLocator = formatPlaywrightLocator(step.condition.elementVisible);
+        condExpr = `await ${targetLocator}.isVisible()`;
+      }
+
+      if (condExpr) {
+        stepLines.push(`  if (${condExpr}) {`);
+        for (const line of actionLines) {
+          stepLines.push(`    ${line}`);
+        }
+        stepLines.push(`  }`);
+      } else {
+        for (const line of actionLines) {
+          stepLines.push(`  ${line}`);
+        }
+      }
+    } else if (step.optional) {
+      if ('value' in step.action && step.action.value && 'input' in step.action.value) {
+        stepLines.push(`  if (inputs?.${step.action.value.input} !== undefined) {`);
+        for (const line of actionLines) {
+          stepLines.push(`    ${line}`);
+        }
+        stepLines.push(`  }`);
+      } else {
+        for (const line of actionLines) {
+          stepLines.push(`  ${line}`);
+        }
+      }
+    } else {
+      for (const line of actionLines) {
+        stepLines.push(`  ${line}`);
       }
     }
 

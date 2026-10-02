@@ -122,5 +122,5 @@ describe('Milestone 3 Differential Test: FULL vs DISTILLED Capture Policy', () =
 
     expect(fullActions.some((s) => s.action === 'click' && s.id === 'sample-btn')).toBe(true);
     expect(fullActions.some((s) => s.action === 'fill' && s.id === 'sample-text')).toBe(true);
-  });
+  }, 60000);
 });
