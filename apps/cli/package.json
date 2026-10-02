@@ -1,0 +1,21 @@
+{
+  "name": "@trace2code/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "trace2code": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@trace2code/protocol": "workspace:*",
+    "@trace2code/test-fixtures": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.7.2"
+  }
+}
